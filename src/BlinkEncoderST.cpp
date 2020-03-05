@@ -290,8 +290,6 @@ void printMode() {
       u8g2.print(F("mode Led PWM 10")); break;
     case modeLedPWM100:
       u8g2.print(F("mode Led PWM 100")); break;
-    case modeSound:
-      u8g2.print(F("mode Sound")); break;
     case modeOscil:
       u8g2.print(F("mode Oscil")); break;
   }
