@@ -1,15 +1,16 @@
 #include <Arduino.h>
-#include "wiring_private.h"
+// #include "wiring_private.h"
 #include <EEPROM.h>
 #include <GyverEncoder.h>
 #include <U8g2lib.h>
 #include <Wire.h>
 
+
 enum TMode {
   mode7seg,
   modeLedPWM10,
   modeLedPWM100,
-  modeSound,
+						
   modeOscil
 };
 TMode mode = mode7seg;
@@ -45,7 +46,7 @@ bool ledState;
 byte lastADCChannel = 0;
 bool enableWriteCom;
 
-word notes[] = {523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988,};
+																																						 
 
 Encoder enc1(pinEnc1, pinEnc2, buttonMode);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
@@ -74,7 +75,7 @@ void setup() {
 
 
 
-  Serial.begin(500000);
+  Serial.begin(2000000);
   enc1.setType(TYPE2);
 
   mode = static_cast<TMode>( (byte)EEPROM.read(0));
@@ -97,116 +98,163 @@ void setup() {
 
 
 
-int Number;
+int Number, LastNumber, LastBrightness;
 
 void loop() {
   int Brightness;
 
   enc1.tick();
 
+//  bool enableWriteComChanged = false;
+//  if (enc1.isHold())
+//  {
+//    enableWriteCom = !enableWriteCom;
+//    enableWriteComChanged = true;
+//  }
+
   unsigned long curTime = micros();
-  if (curTime - lastTimeRead >= delayMainLoop) {
+  if (curTime - lastTimeRead >= 50000) {
     lastTimeRead = curTime;
 
 
-    if (enc1.isClick()) {
+    if (enc1.isClick() ) {
       //mode++;
       mode = static_cast<TMode>( (mode) + 1);
       if (mode > modeOscil) mode = mode7seg;
 
       EEPROM.update(0, mode);
 
-      delayMainLoop = 50000;
+														
 
 
+      
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_6x10_tf);
       u8g2.setCursor(0, 10);
       printMode();
       u8g2.sendBuffer();
       
+      digitalWrite(LED_BUILTIN, HIGH);
+			
+			if (mode == modeLedPWM100)
+				Number = 1;
     }
 
 
     enableWriteCom = !digitalRead(pinEnableDebug);
+    LastNumber = Number;
+														
 
+
+													
+								 
+																					 
+			 
+													 
+								 
+																							
+			 
+
+										 
+									 
+
+														
+			 
+																					
+
+																	
+
+																				
+
+    if (enc1.isLeft()) {
+      Number++;
+//      Serial.print(F("      <--enc1"));
+    }
+    if (enc1.isRight()) {
+      Number--;
+//      Serial.print(F("         enc1-->"));
+    }
+    
+    if (digitalRead(pinEnablePhoto))
+      pinAnToRead = (pinAnPhoto);
+    else
+      pinAnToRead = (pinAnBrightness);
+
+      
     if (mode != modeOscil) {
-
-
-      if (enc1.isLeft()) {
-        Number++;
-//        Serial.print(F("      <--enc1"));
-      }
-      if (enc1.isRight()) {
-        Number--;
-//        Serial.print(F("         enc1-->"));
-      }
-
-      if (Number < 0)
-        Number = 0;
-
-      if (mode == modeSound)
-      {
-        Number = constrain(Number, 0, 11);
-
-        word note = notes[Number];
-
-        delayBlink = (1000000UL / note);
-
-        delayBlinkOn = delayBlink / 2;
-        delayBlinkOff = delayBlinkOn;
-      }
-      else
-      {
-        Number = constrain(Number, 1, 19);
-      }
-
-      if (digitalRead(pinEnablePhoto))
-        pinAnToRead = (pinAnPhoto);
-      else
-        pinAnToRead = (pinAnBrightness);
-
+      Number = constrain(Number, 1, 10);
+      
 
       {
         Brightness = analogRead(pinAnToRead);
         lastADCChannel = pinAnToRead;
       }
+			
+			
+			constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
+			constexpr int16_t ADC_THRESHOLD = MAX_ADC_VALUE * 0.03;
 
-constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
- 
-
-      if ((Number != 0) && (mode != modeSound)) {
+      if ((Number != 0) ) {
         if (mode == modeLedPWM10)
           delayBlink = (1000000UL / Number);
         if (mode == modeLedPWM100)
           delayBlink = (100000UL / Number);
 
-        delayBlinkOn = delayBlink * Brightness / 1023;
+        delayBlinkOn = delayBlink * Brightness / MAX_ADC_VALUE;
         delayBlinkOff = delayBlink - delayBlinkOn;
       }
+			
+			bool BrightnessChanged = abs(Brightness - LastBrightness) > ADC_THRESHOLD;
+			if ((Number != LastNumber) || BrightnessChanged)
+			if (mode != modeOscil){
+				u8g2.clearBuffer();
+				u8g2.setFont(u8g2_font_6x10_tf);
 
-      if (enableWriteCom) {
-        if ((mode != modeOscil))
-        {
-          Serial.print(F("Number="));
-          Serial.print(Number);
+				u8g2.setCursor(0, 10);
+																
+				 
+																		 
+															 
 
-          Serial.print(F("\tBrightness="));
-          Serial.print(Brightness);
+																					 
+																	 
 
-          Serial.print(F("\tdelayBlink="));
-          Serial.print(delayBlink);
+				printMode();
+																	 
 
-          Serial.print(F("\tOn="));
-          Serial.print(delayBlinkOn);
+				u8g2.setCursor(0, 25);
+				u8g2.print(F("Number="));
+				u8g2.setCursor(50, 25);
+				u8g2.print(Number);
 
-          Serial.print(F("\tOff="));
-          Serial.println(delayBlinkOff);
-        }
+				u8g2.setCursor(70, 25);
+				u8g2.print(F("ADC="));
+				u8g2.setCursor(100, 25);
+				u8g2.print(Brightness);
+			 
+
+				u8g2.setCursor(0, 40);
+				u8g2.print(F("Period="));
+				u8g2.setCursor(50, 40);
+				u8g2.print(delayBlink);
+				u8g2.setCursor(0, 55);
+				u8g2.print(delayBlinkOn);      
+				u8g2.setCursor(50, 55);
+				u8g2.print(delayBlinkOff);      
+
+				u8g2.sendBuffer();	
+        			
+        LastBrightness = Brightness;
       }
 
-
-
+    }
+  
+    if (mode == modeOscil)
+    if ((Number != LastNumber) ) {
+//      enableWriteComChanged = false;
+      Number = constrain(Number, 1, 50);
+      delayOscill = Number;
+      
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_6x10_tf);
 
@@ -216,18 +264,20 @@ constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
       printMode();
 
       u8g2.setCursor(0, 25);
-      u8g2.print(F("Number="));
+      u8g2.print(F("Period="));
       u8g2.setCursor(50, 25);
-      u8g2.print(Number);
+      u8g2.print(delayOscill);
+        
+      if (enableWriteCom){
+        u8g2.setCursor(0, 55);
+        u8g2.print(F("Transmit"));  
+      }    
+														 
 
-      u8g2.setCursor(0, 40);
-      u8g2.print(F("Brightness="));
-      u8g2.setCursor(80, 40);
-      u8g2.print(Brightness);
-
-      u8g2.sendBuffer();
+												
 
 
+      u8g2.sendBuffer();        
     }
 
   }
@@ -255,6 +305,9 @@ constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
         Serial.write(hbyte);
         Serial.write(lbyte);
 
+//        byte hbyte = (value >> 4);
+//        Serial.write(hbyte);        
+
         //				if (value > 1000) Serial.write("1");
         //				if (value > 100) Serial.write("2");
         //				if (value > 10) Serial.write("3");
@@ -264,20 +317,21 @@ constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
     }
   }
 
-  if (((mode == modeLedPWM10) || (mode == modeLedPWM100) || (mode == modeSound))) {
+  if ( (mode == modeLedPWM10) || (mode == modeLedPWM100) ) {
 
     if (ledState &&  (curTime - lastTimeBlink > delayBlinkOn)) {
       lastTimeBlink = curTime;
-      digitalWrite(LED_BUILTIN, LOW);
+      digitalWrite(LED_BUILTIN, HIGH);
       ledState = LOW;
     }
 
     if (!ledState &&  (curTime - lastTimeBlink > delayBlinkOff)) {
       lastTimeBlink = curTime;
-      digitalWrite(LED_BUILTIN, HIGH);
+      digitalWrite(LED_BUILTIN, LOW);
       ledState = HIGH;
     }
   }
+
 
 
 }
