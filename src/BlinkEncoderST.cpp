@@ -45,7 +45,7 @@ bool ledState;
 byte lastADCChannel = 0;
 bool enableWriteCom;
 
-																																				 
+constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
 
 Encoder enc1(pinEnc1, pinEnc2, buttonMode);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
@@ -53,6 +53,10 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 constexpr byte display_width 	= 128;
 constexpr byte display_height 	= 64;	
+	const byte yOffset = 16;
+
+byte ADC_buffer[display_width];
+byte ADC_buffer_start = 0;
 
 void printMode();
 void printFPS();
@@ -76,13 +80,10 @@ void setup() {
 	pinMode(pinAnBrightness, INPUT_ANALOG);  
 	pinMode(pinAnPhoto, INPUT_ANALOG);
 
-
-
 	Serial.begin(2000000);
 	enc1.setType(TYPE2);
 
 	mode = static_cast<TMode>( (byte)EEPROM.read(0));
-	
 
 	display.begin();
 
@@ -98,14 +99,17 @@ void setup() {
 	
 }
 
-void drawGrid() {
-	const byte yOffset = 16;
+void drawGrid() 
+{
 	for (byte y = yOffset; y <= display_height; y += 12) 
 	{
 		if (y == display_height)
 			y = display_height - 1;
 		
-		display.drawHVLine(0, y, display_width, 0);
+		// display.drawHVLine(0, y, display_width, 0);
+		for (byte x = 0; x < display_width; x+=2)
+			display.drawPixel(x, y);
+		
 	}
 
 	for (byte x = 0; x <= display_width; x += 16) 
@@ -113,9 +117,36 @@ void drawGrid() {
 		if (x == display_width)
 			x = display_width - 1;
 
-		display.drawHVLine(x, yOffset, display_height, 1);
+		// display.drawHVLine(x, yOffset, display_height, 1);
+		for (byte y = yOffset; y < display_height; y+=2)
+			display.drawPixel(x, y);
 	}
 }
+
+void drawGraph() 
+{
+	byte prevX = 0, prevY = 0;
+	bool first = true;
+	for (byte x = 0; x < display_width; x++) 
+	{
+		byte pos = (x + ADC_buffer_start) % display_width;
+
+		byte value = ADC_buffer[pos];
+		byte y = display_height - value - 1;
+
+		if (first) 
+		{
+			prevX = x;
+			prevY = y;
+			first = false;
+		}
+		display.drawLine(prevX, prevY, x, y);
+		prevX = x;
+		prevY = y;
+	}
+
+}
+
 
 int Number, LastNumber, LastBrightness;
 unsigned long lastFpsTime = 0;
@@ -181,12 +212,14 @@ void loop()
 			{
 				Brightness = analogRead(pinAnToRead);
 				lastADCChannel = pinAnToRead;
-			}
+			};
 
-			constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
-			constexpr int16_t ADC_THRESHOLD = MAX_ADC_VALUE * 0.03;
-			
-			bool BrightnessChanged = abs(Brightness - LastBrightness) > ADC_THRESHOLD;
+			constexpr unsigned long graph_height = display_height - yOffset - 1;
+			ADC_buffer[ADC_buffer_start] = (Brightness * graph_height) / MAX_ADC_VALUE;
+			ADC_buffer_start++;
+			if (ADC_buffer_start >= display_width)
+				ADC_buffer_start = 0;
+
 
 			if (mode == modeGuage)
 			{
@@ -226,6 +259,7 @@ void loop()
 				printFPS();
 		
 				drawGrid();
+				drawGraph(); 
 
 				display.sendBuffer();
 			}	
