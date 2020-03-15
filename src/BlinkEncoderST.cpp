@@ -45,14 +45,17 @@ bool ledState;
 byte lastADCChannel = 0;
 bool enableWriteCom;
 
-constexpr byte GuageStartX 	= 4;
-constexpr byte GuageEndX 		= 128 - 4;																																						 
+																																				 
 
 Encoder enc1(pinEnc1, pinEnc2, buttonMode);
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-//U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+//U8G2_SSD1306_128X64_NONAME_F_SW_I2C display(U8G2_R0, /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
+
+constexpr byte display_width 	= 128;
+constexpr byte display_height 	= 64;	
 
 void printMode();
+void printFPS();
 
 void isrCLK() {
 	enc1.tick();  
@@ -81,13 +84,13 @@ void setup() {
 	mode = static_cast<TMode>( (byte)EEPROM.read(0));
 	
 
-	u8g2.begin();
+	display.begin();
 
-	u8g2.clearBuffer();
-	u8g2.setFont(u8g2_font_6x10_tf);
-	u8g2.setCursor(0, 10);
+	display.clearBuffer();
+	display.setFont(u8g2_font_6x10_tf);
+	display.setCursor(0, 10);
 	printMode();
-	u8g2.sendBuffer();
+	display.sendBuffer();
 
 // отработка энкодера в прерывании
 	attachInterrupt(digitalPinToInterrupt(pinEnc1), isrCLK, CHANGE);
@@ -95,11 +98,31 @@ void setup() {
 	
 }
 
+void drawGrid() {
+	const byte yOffset = 16;
+	for (byte y = yOffset; y <= display_height; y += 12) 
+	{
+		if (y == display_height)
+			y = display_height - 1;
+		
+		display.drawHVLine(0, y, display_width, 0);
+	}
 
+	for (byte x = 0; x <= display_width; x += 16) 
+	{
+		if (x == display_width)
+			x = display_width - 1;
+
+		display.drawHVLine(x, yOffset, display_height, 1);
+	}
+}
 
 int Number, LastNumber, LastBrightness;
+unsigned long lastFpsTime = 0;
+uint16_t fps = 0, frames = 0;
 
-void loop() {
+void loop() 
+{
 	int Brightness;
 
 	enc1.tick();
@@ -112,22 +135,22 @@ void loop() {
 //  }
 
 	unsigned long curTime = micros();
-	if (curTime - lastTimeRead >= 50000) {
+	if (curTime - lastTimeRead >= 50000) 
+	{
 		lastTimeRead = curTime;
 
 
-		if (enc1.isClick() ) {
+		if (enc1.isClick() ) 
+		{
 			//mode++;
 			mode = static_cast<TMode>( (mode) + 1);
 			if (mode > modeOscil) mode = modeGuage;
 
 			EEPROM.update(0, mode);
 			
-			u8g2.clearBuffer();
-			u8g2.setFont(u8g2_font_6x10_tf);
-			u8g2.setCursor(0, 10);
+			display.clearBuffer();
 			printMode();
-			u8g2.sendBuffer();
+			display.sendBuffer();
 			
 			digitalWrite(LED_BUILTIN, HIGH);
 		}
@@ -150,104 +173,111 @@ void loop() {
 			pinAnToRead = (pinAnPhoto);
 		else
 			pinAnToRead = (pinAnBrightness);
-
 			
-		if (mode != modeOscil) {
+		if (mode != modeOscil) 
+		{
 			Number = constrain(Number, 1, 10);
 			
-
 			{
 				Brightness = analogRead(pinAnToRead);
 				lastADCChannel = pinAnToRead;
 			}
-			
 
 			constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
 			constexpr int16_t ADC_THRESHOLD = MAX_ADC_VALUE * 0.03;
-
-
 			
 			bool BrightnessChanged = abs(Brightness - LastBrightness) > ADC_THRESHOLD;
 
-			if (mode == modeGuage){
-				u8g2.clearBuffer();
-				u8g2.setFont(u8g2_font_6x10_tf);
+			if (mode == modeGuage)
+			{
+				display.clearBuffer();
 
-				u8g2.setCursor(0, 10);
-																
 				printMode();
-																	 
+				printFPS();
 
-				u8g2.setCursor(0, 25);
-				u8g2.print(F("Number="));
-				u8g2.setCursor(50, 25);
-				u8g2.print(Number);
+				display.setCursor(0, 25);
+				display.print(F("Number="));
+				display.setCursor(50, 25);
+				display.print(Number);
 
-				u8g2.setCursor(70, 25);
-				u8g2.print(F("ADC="));
-				u8g2.setCursor(100, 25);
-				u8g2.print(Brightness);
+				display.setCursor(70, 25);
+				display.print(F("ADC="));
+				display.setCursor(100, 25);
+				display.print(Brightness);
 
-				constexpr byte mul = MAX_ADC_VALUE / 127;
+				byte GuageValueX = (Brightness * 126ul) / MAX_ADC_VALUE; 
 
-				byte GuageValueX =  Brightness / mul; 
+				display.drawFrame(0, 48, display_width, 15);
+				display.drawBox(1, 48, GuageValueX, 15);
 
- 				u8g2.setCursor(0, 40);
-				u8g2.print(F("Guage="));
-				u8g2.setCursor(50, 40);
-				u8g2.print(GuageValueX);
 
-  			u8g2.drawFrame(100, 40, 3, 3);
-	  		u8g2.drawBox(110, 40, 3, 3);			 
 
-  			u8g2.drawFrame(0, 50, 128, 15);
-	  		u8g2.drawBox(0, 50, GuageValueX, 15);
+				display.sendBuffer();
 
-     
-
-				u8g2.sendBuffer();	
 							
 				LastBrightness = Brightness;
 			}
 
+			if (mode == modeGraph)
+			{
+				display.clearBuffer();
+
+				printMode();
+				printFPS();
+		
+				drawGrid();
+
+				display.sendBuffer();
+			}	
+
+			frames++;
+			unsigned long curTime = micros();
+			if (curTime - lastFpsTime >= 1000000) 
+			{
+				fps = frames;
+				frames = 0;
+				lastFpsTime = curTime;
+			}
+
+
 		}
 	
 		if (mode == modeOscil)
-		if ((Number != LastNumber) ) {
+		if ((Number != LastNumber) ) 
+		{
 //      enableWriteComChanged = false;
 			Number = constrain(Number, 1, 50);
 			delayOscill = Number;
 			
-			u8g2.clearBuffer();
-			u8g2.setFont(u8g2_font_6x10_tf);
-
-			u8g2.setCursor(0, 10);
-
+			display.clearBuffer();
 
 			printMode();
 
-			u8g2.setCursor(0, 25);
-			u8g2.print(F("Period="));
-			u8g2.setCursor(50, 25);
-			u8g2.print(delayOscill);
+			display.setCursor(0, 25);
+			display.print(F("Period="));
+			display.setCursor(50, 25);
+			display.print(delayOscill);
 				
-			if (enableWriteCom){
-				u8g2.setCursor(0, 55);
-				u8g2.print(F("Transmit"));  
+			if (enableWriteCom)
+			{
+				display.setCursor(0, 55);
+				display.print(F("Transmit"));  
 			}    
 														 
 
-			u8g2.sendBuffer();        
+			display.sendBuffer();        
 		}
 
 	}
 
-	if (mode == modeOscil) {
+	if (mode == modeOscil) 
+	{
 		curTime = micros();
 
 		word value = 0;
 
-		if (curTime - lastTimeOscill >= delayOscill) {
+		if (curTime - lastTimeOscill >= delayOscill) 
+		{
 			lastTimeOscill = curTime;
 
 			{
@@ -256,7 +286,8 @@ void loop() {
 			}
 
 
-			if (enableWriteCom) {
+			if (enableWriteCom) 
+			{
 				//				Serial.println(value);
 
 				// ADC bits: 0 0 0 0  0 0 1 2 , 3 4 5 6  7 8 9 10
@@ -279,16 +310,30 @@ void loop() {
 
 }
 
-void printMode() {
-	switch (mode) {
+void printMode() 
+{
+	display.setFont(u8g2_font_6x10_tf);
+	display.setCursor(0, 10);
+
+	switch (mode) 
+	{
 		case modeGuage:
-			u8g2.print(F("mode Guage")); break;
+			display.print(F("mode Guage")); break;
 		case modeGraph:
-			u8g2.print(F("mode Graph")); break;
+			display.print(F("mode Graph")); break;
 		case modeOscil:
-			u8g2.print(F("mode Oscil")); break;
+			display.print(F("mode Oscil")); break;
 	}
 }
 
+void printFPS() 
+{
+	display.setCursor(85, 10);
+	display.print(F("fps="));
+	byte x = 106;
+	if (fps < 100) x += 6;
+	display.setCursor(x, 10);
+	display.print(fps);
+}
 
 
