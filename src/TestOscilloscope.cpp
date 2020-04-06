@@ -6,13 +6,13 @@
 #include <Wire.h>
 
 
-enum TMode {
-	modeGuage,
-	modeGraph,
-						
-	modeOscil
+enum class TMode {
+	Guage,
+	Graph,
+					
+	Oscil
 };
-TMode mode = modeGuage;
+TMode mode = TMode::Guage;
 
 
 
@@ -96,7 +96,8 @@ void setup() {
 // отработка энкодера в прерывании
 	attachInterrupt(digitalPinToInterrupt(pinEnc1), isrCLK, CHANGE);
 	attachInterrupt(digitalPinToInterrupt(pinEnc2), isrDT, CHANGE);
-	
+//	Timer1.setPeriod(1000);
+//	Timer1.attachInterrupt();
 }
 
 void drawGrid() 
@@ -174,10 +175,10 @@ void loop()
 		if (enc1.isClick() ) 
 		{
 			//mode++;
-			mode = static_cast<TMode>( (mode) + 1);
-			if (mode > modeOscil) mode = modeGuage;
+			mode = static_cast<TMode>( static_cast<int>(mode) + 1);
+			if (mode > TMode::Oscil) mode = TMode::Guage;
 
-			EEPROM.update(0, mode);
+			EEPROM.update(0, static_cast<int>(mode));
 			
 			display.clearBuffer();
 			printMode();
@@ -205,7 +206,7 @@ void loop()
 		else
 			pinAnToRead = (pinAnBrightness);
 			
-		if (mode != modeOscil) 
+		if (mode != TMode::Oscil) 
 		{
 			Number = constrain(Number, 1, 10);
 			
@@ -221,7 +222,7 @@ void loop()
 				ADC_buffer_start = 0;
 
 
-			if (mode == modeGuage)
+			if (mode == TMode::Guage)
 			{
 				display.clearBuffer();
 
@@ -251,7 +252,7 @@ void loop()
 				LastBrightness = Brightness;
 			}
 
-			if (mode == modeGraph)
+			if (mode == TMode::Graph)
 			{
 				display.clearBuffer();
 
@@ -276,7 +277,7 @@ void loop()
 
 		}
 	
-		if (mode == modeOscil)
+		if (mode == TMode::Oscil)
 		if ((Number != LastNumber) ) 
 		{
 //      enableWriteComChanged = false;
@@ -304,7 +305,7 @@ void loop()
 
 	}
 
-	if (mode == modeOscil) 
+	if (mode == TMode::Oscil) 
 	{
 		curTime = micros();
 
@@ -351,11 +352,11 @@ void printMode()
 
 	switch (mode) 
 	{
-		case modeGuage:
+		case TMode::Guage:
 			display.print(F("mode Guage")); break;
-		case modeGraph:
+		case TMode::Graph:
 			display.print(F("mode Graph")); break;
-		case modeOscil:
+		case TMode::Oscil:
 			display.print(F("mode Oscil")); break;
 	}
 }
