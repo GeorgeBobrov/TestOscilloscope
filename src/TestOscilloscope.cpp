@@ -5,7 +5,6 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 
-
 enum class TMode {
 	Guage,
 	Graph,
@@ -15,13 +14,10 @@ enum class TMode {
 TMode mode = TMode::Guage;
 
 
-
-
-constexpr byte buttonMode = PB5;
+constexpr byte pinEncButton = PB5;
 constexpr byte pinEnc1 = PB3;
 constexpr byte pinEnc2 = PB4;
 
-constexpr byte pinAnNumber = PA6;
 constexpr byte pinAnBrightness = PA7;
 constexpr byte pinAnPhoto = PA3;
 
@@ -47,7 +43,7 @@ bool enableWriteCom;
 
 constexpr int16_t MAX_ADC_VALUE = bit(12) - 1;
 
-Encoder enc1(pinEnc1, pinEnc2, buttonMode);
+Encoder enc1(pinEnc1, pinEnc2, pinEncButton);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 //U8G2_SSD1306_128X64_NONAME_F_SW_I2C display(U8G2_R0, /* clock=*/ SCL, /* data=*/ SDA, /* reset=*/ U8X8_PIN_NONE);   // All Boards without Reset of the Display
 
@@ -72,15 +68,14 @@ void isrDT() {
 void setup() {
 	// initialize digital pin LED_BUILTIN as an output.
 	pinMode(LED_BUILTIN, OUTPUT);
-	//	pinMode(buttonMode, INPUT_PULLUP);
+	//	pinMode(pinEncButton, INPUT_PULLUP);
 	pinMode(pinEnablePhoto, INPUT_PULLUP);
 	pinMode(pinEnableDebug, INPUT_PULLUP);
 
-	pinMode(pinAnNumber, INPUT_ANALOG);
 	pinMode(pinAnBrightness, INPUT_ANALOG);  
 	pinMode(pinAnPhoto, INPUT_ANALOG);
 
-	Serial.begin(2000000);
+	Serial.begin(1000000);
 	enc1.setType(TYPE2);
 
 	mode = static_cast<TMode>( (byte)EEPROM.read(0));
@@ -149,13 +144,13 @@ void drawGraph()
 }
 
 
-int Number, LastNumber, LastBrightness;
+int Number, LastNumber, lastAnalogValue;
 unsigned long lastFpsTime = 0;
 uint16_t fps = 0, frames = 0;
 
 void loop() 
 {
-	int Brightness;
+	int analogValue;
 
 	enc1.tick();
 
@@ -211,12 +206,12 @@ void loop()
 			Number = constrain(Number, 1, 10);
 			
 			{
-				Brightness = analogRead(pinAnToRead);
+				analogValue = analogRead(pinAnToRead);
 				lastADCChannel = pinAnToRead;
 			};
 
 			constexpr unsigned long graph_height = display_height - yOffset - 1;
-			ADC_buffer[ADC_buffer_start] = (Brightness * graph_height) / MAX_ADC_VALUE;
+			ADC_buffer[ADC_buffer_start] = (analogValue * graph_height) / MAX_ADC_VALUE;
 			ADC_buffer_start++;
 			if (ADC_buffer_start >= display_width)
 				ADC_buffer_start = 0;
@@ -237,9 +232,9 @@ void loop()
 				display.setCursor(70, 25);
 				display.print(F("ADC="));
 				display.setCursor(100, 25);
-				display.print(Brightness);
+				display.print(analogValue);
 
-				byte GuageValueX = (Brightness * 126ul) / MAX_ADC_VALUE; 
+				byte GuageValueX = (analogValue * 126ul) / MAX_ADC_VALUE; 
 
 				display.drawFrame(0, 48, display_width, 15);
 				display.drawBox(1, 48, GuageValueX, 15);
@@ -249,7 +244,7 @@ void loop()
 				display.sendBuffer();
 
 							
-				LastBrightness = Brightness;
+				lastAnalogValue = analogValue;
 			}
 
 			if (mode == TMode::Graph)
@@ -353,11 +348,11 @@ void printMode()
 	switch (mode) 
 	{
 		case TMode::Guage:
-			display.print(F("mode Guage")); break;
+			display.print(F("Guage")); break;
 		case TMode::Graph:
-			display.print(F("mode Graph")); break;
+			display.print(F("Graph")); break;
 		case TMode::Oscil:
-			display.print(F("mode Oscil")); break;
+			display.print(F("Oscil to PC5")); break;
 	}
 }
 
@@ -370,5 +365,3 @@ void printFPS()
 	display.setCursor(x, 10);
 	display.print(fps);
 }
-
-
